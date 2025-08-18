@@ -88,7 +88,7 @@ def update_tasks():
             'error': 'É necessário informar o ID da tarefa.'
         }), 400
 
-    if titulo or descricao or isCompleted:
+    if titulo is not None or descricao is not None or isCompleted is not None:
 
         con = sqlite3.connect('banco.db')
 
@@ -176,4 +176,4 @@ def remove_tasks():
     }), 200
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
