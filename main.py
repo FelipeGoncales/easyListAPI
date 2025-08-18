@@ -83,28 +83,52 @@ def update_tasks():
     descricao = data.get('descricao')
     isCompleted = data.get('isCompleted')
 
-    if not id_task or not titulo or not descricao or isCompleted not in [False, True]:
+    if not id_task:
         return jsonify({
-            'error': 'Dados incompletos.'
+            'error': 'É necessário informar o ID da tarefa.'
         }), 400
 
-    con = sqlite3.connect('banco.db')
+    if titulo or descricao or isCompleted:
 
-    cursor = con.cursor()
+        con = sqlite3.connect('banco.db')
 
-    cursor.execute('''
-        UPDATE TASK
-        SET titulo = ?, descricao = ?, isCompleted = ?
-        WHERE id_task = ?
-    ''', (titulo, descricao, isCompleted, id_task))
+        cursor = con.cursor()
 
-    con.commit()
+        query = []
+        params = []
 
-    cursor.close()
+        if titulo is not None:
+            query.append("titulo = ?")
+            params.append(titulo)
+        if descricao is not None:
+            query.append("descricao = ?")
+            params.append(descricao)
+        if isCompleted is not None:
+            query.append("isCompleted = ?")
+            params.append(isCompleted)
 
-    return jsonify({
-        "success": "Tarefa atualizada com sucesso!"
-    }), 200
+        if query:
+            query = ", ".join(query)
+            params.append(id_task)
+
+        cursor.execute(f'''
+            UPDATE TASK
+            SET {query}
+            WHERE id_task = ?
+        ''', (tuple(params)))
+
+        con.commit()
+
+        cursor.close()
+
+        return jsonify({
+            "success": "Tarefa atualizada com sucesso!"
+        }), 200
+
+    else:
+        return jsonify({
+            'error': 'É necessário informar ao menos um parâmetro para atualizar a tarefa.'
+        }), 400
 
 
 @app.route('/task', methods=['DELETE'])
