@@ -54,14 +54,23 @@ def create_tasks():
     cursor.execute('''
         INSERT INTO TASK (titulo, descricao, isCompleted)
         VALUES (?, ?, ?)
+        RETURNING ID_TASK
     ''', (titulo, descricao, isCompleted))
+
+    id_task = cursor.fetchone()[0]
 
     con.commit()
 
     cursor.close()
 
     return jsonify({
-        "success": "Tarefa adicionada com sucesso!"
+        "success": "Tarefa adicionada com sucesso!",
+        "newTask": {
+            "titulo": titulo,
+            "descricao": descricao,
+            "id": id_task,
+            "isCompleted": isCompleted
+        }
     }), 200
 
 @app.route('/task', methods=['PUT'])
