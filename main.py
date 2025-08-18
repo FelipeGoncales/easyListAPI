@@ -33,6 +33,35 @@ def get_tasks():
     }), 200
 
 
+@app.route('/task/<int:id>', methods=['GET'])
+def get_unique_task(id):
+    con = sqlite3.connect('banco.db')
+
+    cursor = con.cursor()
+
+    cursor.execute("SELECT * FROM TASK WHERE ID_TASK = ?", (id,))
+
+    data = cursor.fetchone()
+
+    if not data:
+        return jsonify({
+            'error': 'Tarefa não encontrada.'
+        }), 404
+
+    cursor.close()
+
+    task = {
+        "id": data[0],
+        "titulo": data[1],
+        "descricao": data[2],
+        "isCompleted": data[3]
+    }
+
+    return jsonify({
+        "task": task
+    }), 200
+
+
 @app.route('/task', methods=['POST'])
 def create_tasks():
 
