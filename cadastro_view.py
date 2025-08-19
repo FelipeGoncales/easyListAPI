@@ -75,6 +75,17 @@ def post_cadastro():
     con = connectDb()
     cursor = con.cursor()
 
+    cursor.execute('''
+            SELECT 1
+            FROM USUARIOS
+            WHERE EMAIL = ?
+        ''', (email,))
+
+    if cursor.fetchone():
+        return jsonify({
+            'error': 'Email já cadastrado.'
+        }), 400
+
     senha_hash = generate_password_hash(senha).decode('utf-8')
 
     cursor.execute('''
