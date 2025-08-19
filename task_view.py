@@ -2,12 +2,7 @@ from flask import Flask, request, jsonify
 import sqlite3
 from main import app, connectDb, SENHA_SECRETA
 import jwt
-
-def remover_bearer(token):
-    if token.startswith('Bearer '):
-        return token[len('Bearer '):]
-    else:
-        return token
+from components import remover_bearer, validar_user
 
 @app.route('/task', methods=['GET'])
 def get_tasks():
@@ -20,10 +15,16 @@ def get_tasks():
     try:
         payload = jwt.decode(token, SENHA_SECRETA, algorithms=['HS256'])
         id_usuario = payload['id_usuario']
+        email = payload['email']
     except jwt.ExpiredSignatureError:
         return jsonify({'error': 'Token expirado'}), 401
     except jwt.InvalidTokenError:
         return jsonify({'error': 'Token inválido'}), 401
+
+    if not validar_user(id_usuario, email):
+        return jsonify({
+            'userExist': False
+        }), 400
 
     con = connectDb()
 
@@ -62,10 +63,16 @@ def get_unique_task(id_task):
     try:
         payload = jwt.decode(token, SENHA_SECRETA, algorithms=['HS256'])
         id_usuario = payload['id_usuario']
+        email = payload['email']
     except jwt.ExpiredSignatureError:
         return jsonify({'error': 'Token expirado'}), 401
     except jwt.InvalidTokenError:
         return jsonify({'error': 'Token inválido'}), 401
+
+    if not validar_user(id_usuario, email):
+        return jsonify({
+            'userExist': False
+        }), 400
 
     con = connectDb()
 
@@ -105,10 +112,16 @@ def create_tasks():
     try:
         payload = jwt.decode(token, SENHA_SECRETA, algorithms=['HS256'])
         id_usuario = payload['id_usuario']
+        email = payload['email']
     except jwt.ExpiredSignatureError:
         return jsonify({'error': 'Token expirado'}), 401
     except jwt.InvalidTokenError:
         return jsonify({'error': 'Token inválido'}), 401
+
+    if not validar_user(id_usuario, email):
+        return jsonify({
+            'userExist': False
+        }), 400
 
     data = request.get_json()
 
@@ -158,10 +171,16 @@ def update_tasks():
     try:
         payload = jwt.decode(token, SENHA_SECRETA, algorithms=['HS256'])
         id_usuario = payload['id_usuario']
+        email = payload['email']
     except jwt.ExpiredSignatureError:
         return jsonify({'error': 'Token expirado'}), 401
     except jwt.InvalidTokenError:
         return jsonify({'error': 'Token inválido'}), 401
+
+    if not validar_user(id_usuario, email):
+        return jsonify({
+            'userExist': False
+        }), 400
 
     data = request.get_json()
 
@@ -230,10 +249,16 @@ def remove_tasks():
     try:
         payload = jwt.decode(token, SENHA_SECRETA, algorithms=['HS256'])
         id_usuario = payload['id_usuario']
+        email = payload['email']
     except jwt.ExpiredSignatureError:
         return jsonify({'error': 'Token expirado'}), 401
     except jwt.InvalidTokenError:
         return jsonify({'error': 'Token inválido'}), 401
+
+    if not validar_user(id_usuario, email):
+        return jsonify({
+            'userExist': False
+        }), 400
 
     data = request.get_json()
 

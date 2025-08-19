@@ -5,12 +5,7 @@ import jwt
 import re
 from flask_bcrypt import check_password_hash, generate_password_hash
 from login_view import generateToken
-
-def remover_bearer(token):
-    if token.startswith('Bearer '):
-        return token[len('Bearer '):]
-    else:
-        return token
+from components import remover_bearer, validar_user
 
 def validarSenha(senha):
     if len(senha) < 8:
@@ -38,10 +33,16 @@ def get_cadastro():
     try:
         payload = jwt.decode(token, SENHA_SECRETA, algorithms=['HS256'])
         id_usuario = payload['id_usuario']
+        email = payload['email']
     except jwt.ExpiredSignatureError:
         return jsonify({'error': 'Token expirado'}), 401
     except jwt.InvalidTokenError:
         return jsonify({'error': 'Token inválido'}), 401
+
+    if not validar_user(id_usuario, email):
+        return jsonify({
+            'userExist': False
+        }), 400
 
     con = connectDb()
 
@@ -136,13 +137,17 @@ def delete_cadastro():
 
     try:
         payload = jwt.decode(token, SENHA_SECRETA, algorithms=['HS256'])
-        id_usuario = payload['idUser']
+        id_usuario = payload['id_usuario']
+        email = payload['email']
     except jwt.ExpiredSignatureError:
         return jsonify({'error': 'Token expirado'}), 401
     except jwt.InvalidTokenError:
         return jsonify({'error': 'Token inválido'}), 401
 
-    data = request.get_json()
+    if not validar_user(id_usuario, email):
+        return jsonify({
+            'userExist': False
+        }), 400
 
     # Abre o cursor
     con = connectDb()
