@@ -3,6 +3,21 @@ import sqlite3
 from main import app, connectDb, SENHA_SECRETA
 import jwt
 from components import remover_bearer, validar_user
+from datetime import datetime
+
+def validarData(data):
+    try:
+        datetime.strptime(data, "%Y-%m-%d")
+        return True
+    except:
+        return False
+
+def formatarData(data):
+    return datetime.strptime(data,"%Y-%m-%d")
+
+def formatarDataBanco(data):
+    parsed = datetime.strptime(data, "%Y-%m-%d %H:%M:%S")
+    return parsed.strftime("%Y-%m-%d")
 
 @app.route('/task', methods=['GET'])
 def get_tasks():
@@ -30,7 +45,7 @@ def get_tasks():
 
     cursor = con.cursor()
 
-    cursor.execute("SELECT * FROM TASK WHERE ID_USUARIO = ?", (id_usuario,))
+    cursor.execute("SELECT ID_TASK, TITULO, DESCRICAO, ISCOMPLETED, DATA FROM TASK WHERE ID_USUARIO = ?", (id_usuario,))
 
     tasks = cursor.fetchall()
 
@@ -44,7 +59,8 @@ def get_tasks():
                 "id": task[0],
                 "titulo": task[1],
                 "descricao": task[2],
-                "isCompleted": task[3]
+                "isCompleted": task[3],
+                "data": formatarDataBanco(task[4])
             })
 
     return jsonify({
@@ -78,13 +94,13 @@ def get_unique_task(id_task):
 
     cursor = con.cursor()
 
-    cursor.execute("SELECT * FROM TASK WHERE ID_TASK = ? AND ID_USUARIO = ?", (id_task, id_usuario))
+    cursor.execute("SELECT ID_TASK, TITULO, DESCRICAO, ISCOMPLETED, DATA FROM TASK WHERE ID_TASK = ? AND ID_USUARIO = ?", (id_task, id_usuario))
 
     data = cursor.fetchone()
 
     if not data:
         return jsonify({
-            'error': 'Tarefa não encontrada.'
+            'error': 'Tarefa não encontrada'
         }), 404
 
     cursor.close()
@@ -93,7 +109,8 @@ def get_unique_task(id_task):
         "id": data[0],
         "titulo": data[1],
         "descricao": data[2],
-        "isCompleted": data[3]
+        "isCompleted": data[3],
+        "data": formatarDataBanco(data[4])
     }
 
     return jsonify({
@@ -128,21 +145,31 @@ def create_tasks():
     titulo = data.get('titulo')
     descricao = data.get('descricao')
     isCompleted = data.get('isCompleted')
+    data = data.get('data')
 
-    if not titulo or not descricao or isCompleted not in [False, True]:
+    if not titulo or not descricao or not data or isCompleted not in [False, True]:
         return jsonify({
-            'error': 'Dados incompletos ou inválidos.'
+            'error': 'Dados incompletos ou inválidos'
         }), 400
+
+    dataValida = validarData(data)
+
+    if not dataValida:
+        return jsonify({
+            'error': 'Data inválida'
+        }), 400
+
+    dataFormatada = formatarData(data)
 
     con = connectDb()
 
     cursor = con.cursor()
 
     cursor.execute('''
-        INSERT INTO TASK (titulo, descricao, isCompleted, id_usuario)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO TASK (titulo, descricao, isCompleted, data, id_usuario)
+        VALUES (?, ?, ?, ?, ?)
         RETURNING ID_TASK
-    ''', (titulo, descricao, isCompleted, id_usuario))
+    ''', (titulo, descricao, isCompleted, dataFormatada, id_usuario))
 
     id_task = cursor.fetchone()[0]
 
@@ -156,6 +183,7 @@ def create_tasks():
             "titulo": titulo,
             "descricao": descricao,
             "id": id_task,
+            "data": data,
             "isCompleted": isCompleted
         }
     }), 200
@@ -188,13 +216,14 @@ def update_tasks():
     titulo = data.get('titulo')
     descricao = data.get('descricao')
     isCompleted = data.get('isCompleted')
+    data = data.get('data')
 
     if not id_task:
         return jsonify({
-            'error': 'É necessário informar o ID da tarefa.'
+            'error': 'É necessário informar o ID da tarefa'
         }), 400
 
-    if titulo is not None or descricao is not None or isCompleted is not None:
+    if titulo is not None or descricao is not None or isCompleted is not None or data is not None:
 
         con = connectDb()
 
@@ -212,6 +241,18 @@ def update_tasks():
         if isCompleted is not None:
             query.append("isCompleted = ?")
             params.append(isCompleted)
+        if data is not None:
+            dataValida = validarData()
+
+            if not dataValida:
+                return jsonify({
+                    'error': 'Data inválida'
+                }), 400
+
+            dataFormatada = formatarData(data)
+
+            query.append("data = ?")
+            params.append(dataFormatada)
 
         if query:
             query = ", ".join(query)
@@ -234,7 +275,7 @@ def update_tasks():
 
     else:
         return jsonify({
-            'error': 'É necessário informar ao menos um parâmetro para atualizar a tarefa.'
+            'error': 'É necessário informar ao menos um parâmetro para atualizar a tarefa'
         }), 400
 
 
@@ -266,7 +307,7 @@ def remove_tasks():
 
     if not id_task:
         return jsonify({
-            'error': 'Dados incompletos.'
+            'error': 'Dados incompletos'
         }), 400
 
     con = connectDb()
@@ -285,7 +326,7 @@ def remove_tasks():
         cursor.close()
 
         return jsonify({
-            'error': 'Tarefa não encontrada.'
+            'error': 'Tarefa não encontrada'
         }), 404
 
     cursor.execute('''
