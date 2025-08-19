@@ -29,30 +29,48 @@ def validarSenha(senha):
 
 @app.route('/cadastro', methods=['GET'])
 def get_cadastro():
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'error': 'Token de autenticação necessário'}), 401
+
+    token = remover_bearer(token)
+
+    try:
+        payload = jwt.decode(token, SENHA_SECRETA, algorithms=['HS256'])
+        id_usuario = payload['id_usuario']
+    except jwt.ExpiredSignatureError:
+        return jsonify({'error': 'Token expirado'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'error': 'Token inválido'}), 401
+
     con = connectDb()
 
     cursor = con.cursor()
 
     cursor.execute('''
-        SELECT ID_USUARIO, EMAIL, SENHA, NOME
+        SELECT EMAIL, SENHA, NOME
         FROM USUARIOS
-    ''')
+        WHERE ID_USUARIO = ?
+    ''', (id_usuario,))
 
-    data = cursor.fetchall()
+    data = cursor.fetchone()
 
-    usuarios = []
+    if not data:
+        return jsonify({
+            'error': 'Usuário não encontrado.'
+        }), 400
 
-    if data:
-        for usuario in data:
-            usuarios.append({
-                'id_usuario': usuario[0],
-                'email': usuario[1],
-                'senha': usuario[2],
-                'nome': usuario[3]
-            })
+    cursor.close()
+
+    usuario = {
+            'id_usuario': id_usuario,
+            'email': data[0],
+            'senha': data[1],
+            'nome': data[2]
+        }
 
     return jsonify({
-        "usuarios": usuarios
+        "usuario": usuario
     }), 200
 
 @app.route('/cadastro', methods=['POST'])
