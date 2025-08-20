@@ -3,16 +3,7 @@ import sqlite3
 from flask_bcrypt import check_password_hash
 from main import app, connectDb, SENHA_SECRETA
 import jwt
-
-def generateToken(idUsuario, email):
-    payload = {
-        'id_usuario': idUsuario,
-        'email': email
-    }
-
-    token = jwt.encode(payload, SENHA_SECRETA, algorithm='HS256')
-
-    return token
+from components import generateToken
 
 @app.route('/login', methods=['POST'])
 def login():

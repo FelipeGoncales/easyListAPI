@@ -24,3 +24,13 @@ def validar_user(id_usuario, email):
         return True
 
     return False
+
+def generateToken(idUsuario, email):
+    payload = {
+        'id_usuario': idUsuario,
+        'email': email
+    }
+
+    token = jwt.encode(payload, SENHA_SECRETA, algorithm='HS256')
+
+    return token

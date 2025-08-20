@@ -11,6 +11,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import threading
+from components import generateToken
 
 def validarSenha(senha):
     if len(senha) < 8:
@@ -284,8 +285,8 @@ def reenviar_codigo():
             'error': e
         }), 400
 
-@app.route('/validar-codigo', methods=['POST'])
-def validar_codigo():
+@app.route('/validar-cadastro', methods=['POST'])
+def validar_cadastro():
 
     data = request.get_json()
     email = data.get('email')
@@ -330,12 +331,18 @@ def validar_codigo():
         UPDATE USUARIOS
         SET CODIGO= NULL, CODIGO_CRIADO_EM= NULL, CONFIRMADO = True
         WHERE email = ?
+        RETURNING ID_USUARIO
     ''', (email,))
+
+    id_usuario = cursor.fetchone()[0]
 
     con.commit()
     con.close()
 
+    token = generateToken(id_usuario, email)
+
     return jsonify({
-        'success': 'Cadastro aprovado com sucesso!'
+        'success': 'Cadastro aprovado com sucesso!',
+        'token': token
     }), 200
 
