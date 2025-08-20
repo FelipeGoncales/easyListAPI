@@ -8,6 +8,8 @@ def connectDb():
     return sqlite3.connect('banco.db')
 
 SENHA_SECRETA = "easylist"
+EMAIL_APP = "easylistbgi@gmail.com"
+SENHA_APP = "epsjtikubllqfrxx"
 
 from task_view import *
 from login_view import *

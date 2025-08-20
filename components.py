@@ -17,7 +17,7 @@ def validar_user(id_usuario, email):
     cursor.execute('''
         SELECT 1 
         FROM USUARIOS
-        WHERE ID_USUARIO = ? AND EMAIL = ?
+        WHERE ID_USUARIO = ? AND EMAIL = ? AND CONFIRMADO = 1
     ''', (id_usuario, email))
 
     if cursor.fetchone():

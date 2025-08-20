@@ -26,12 +26,14 @@ def login():
     cursor = con.cursor()
 
     cursor.execute('''
-        SELECT SENHA, ID_USUARIO
+        SELECT SENHA, ID_USUARIO, CONFIRMADO
         FROM USUARIOS
         WHERE EMAIL = ?
     ''', (email,))
 
     resposta = cursor.fetchone()
+
+    con.close()
 
     if not resposta:
         return jsonify({
@@ -40,11 +42,18 @@ def login():
 
     senha_hash = resposta[0]
     id_usuario = resposta[1]
+    confirmado = resposta[2]
 
     if not check_password_hash(senha_hash, senha):
         return jsonify({
             'error': 'Senha incorreta.'
         }), 401
+
+    if confirmado != 1:
+        return jsonify({
+            'error': 'Email não confirmado',
+            'emailNotConfirmed': True
+        }), 400
 
     token = generateToken(id_usuario, email)
 

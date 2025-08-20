@@ -49,7 +49,7 @@ def get_tasks():
 
     tasks = cursor.fetchall()
 
-    cursor.close()
+    con.close()
 
     data = []
 
@@ -103,7 +103,7 @@ def get_unique_task(id_task):
             'error': 'Tarefa não encontrada'
         }), 404
 
-    cursor.close()
+    con.close()
 
     task = {
         "id": data[0],
@@ -175,7 +175,7 @@ def create_tasks():
 
     con.commit()
 
-    cursor.close()
+    con.close()
 
     return jsonify({
         "success": "Tarefa adicionada com sucesso!",
@@ -267,7 +267,7 @@ def update_tasks():
 
         con.commit()
 
-        cursor.close()
+        con.close()
 
         return jsonify({
             "success": "Tarefa atualizada com sucesso!"
@@ -323,7 +323,7 @@ def remove_tasks():
     row = cursor.fetchone()
 
     if not row:
-        cursor.close()
+        con.close()
 
         return jsonify({
             'error': 'Tarefa não encontrada'
@@ -337,7 +337,7 @@ def remove_tasks():
 
     con.commit()
 
-    cursor.close()
+    con.close()
 
     return jsonify({
         "success": "Tarefa deletada com sucesso!"
