@@ -45,7 +45,7 @@ def get_tasks():
 
     cursor = con.cursor()
 
-    cursor.execute("SELECT ID_TASK, TITULO, DESCRICAO, ISCOMPLETED, DATA FROM TASK WHERE ID_USUARIO = ?", (id_usuario,))
+    cursor.execute("SELECT ID_TASK, TITULO, DESCRICAO, ISCOMPLETED, DATA FROM TASK WHERE ID_USUARIO = ? ORDER BY DATA ASC", (id_usuario,))
 
     tasks = cursor.fetchall()
 

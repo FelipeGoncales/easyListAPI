@@ -28,7 +28,7 @@ def login():
 
     if not resposta:
         return jsonify({
-            'error': 'Usuário não encontrado.'
+            'error': 'Usuário não encontrado'
         }), 404
 
     senha_hash = resposta[0]
@@ -37,7 +37,7 @@ def login():
 
     if not check_password_hash(senha_hash, senha):
         return jsonify({
-            'error': 'Senha incorreta.'
+            'error': 'Senha incorreta'
         }), 401
 
     if confirmado != 1:

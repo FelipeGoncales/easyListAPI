@@ -15,16 +15,16 @@ from components import generateToken
 
 def validarSenha(senha):
     if len(senha) < 8:
-        return "A senha deve 8 caracateres ou mais."
+        return "A senha deve 8 caracateres ou mais"
 
     if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", senha):
-        return "A senha deve conter pelo menos um símbolo especial (!@#$%^&*...)."
+        return "A senha deve conter pelo menos um símbolo especial (!@#$%^&*...)"
 
     if not re.search(r"[A-Z]", senha):
-        return "A senha deve conter pelo menos uma letra maiúscula."
+        return "A senha deve conter pelo menos uma letra maiúscula"
 
     if not re.search(r"[0-9]", senha):
-        return "A senha deve conter pelo menos um número."
+        return "A senha deve conter pelo menos um número"
 
     return True
 
@@ -122,7 +122,7 @@ def get_cadastro():
 
     if not data:
         return jsonify({
-            'error': 'Usuário não encontrado.'
+            'error': 'Usuário não encontrado'
         }), 400
 
     con.close()
@@ -173,7 +173,7 @@ def post_cadastro():
     if cursor.fetchone():
         con.close()
         return jsonify({
-            'error': 'Email já cadastrado.'
+            'error': 'Email já cadastrado'
         }), 400
 
     validacaoSenha = validarSenha(senha)
