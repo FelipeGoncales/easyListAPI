@@ -50,27 +50,59 @@ def gerarCodigo(id_usuario):
     con.commit()
     con.close()
     return codigo
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import smtplib
 
 def enviarEmail(email, codigo):
-    # 1️⃣ Configurações do remetente e destinatário
     remetente = EMAIL_APP
     senha = SENHA_APP
     destinatario = email
 
-    # 2️⃣ Criar a mensagem
+    # Criar a mensagem
     mensagem = MIMEMultipart()
     mensagem['From'] = remetente
     mensagem['To'] = destinatario
-    mensagem['Subject'] = "Código de verificação"
+    mensagem['Subject'] = "Código de verificação EasyList"
 
-    # 3️⃣ Corpo do email (pode ser texto simples ou HTML)
-    corpo = f"Olá!\n\nSeu código é: {codigo}\n\nAtt, EasyList"
-    mensagem.attach(MIMEText(corpo, 'plain'))
+    # Corpo HTML do email
+    corpo_html = f"""
+    <body style="margin:0; padding:25px; background-color:#e5e7eb; font-family: Helvetica, Arial, sans-serif;">
+      <table width="100%" height="100%" bgcolor="#e5e7eb" align="center">
+        <tr>
+          <td align="center" valign="middle" bgcolor="#e5e7eb">
+            <table width="450" bgcolor="#90a1b9" style="border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.1); padding:30px; text-align:center;">
+              <tr>
+                <td style="font-size:24px; font-weight:bold; color:#314158; padding-bottom:20px;">EasyList</td>
+              </tr>
+              <tr>
+                <td style="font-size:16px; color:#314158; padding-bottom:10px; font-weight:semibold;">Olá!</td>
+              </tr>
+              <tr>
+                <td style="font-size:14px; color:#314158; padding-bottom:20px;">Seu código de verificação é:</td>
+              </tr>
+              <tr>
+                <td style="background-color:#cad5e2; color:#314158; font-size:28px; font-weight:bold; padding:15px 0; border-radius:8px; letter-spacing:4px; margin-bottom:20px;">{codigo}</td>
+              </tr>
+              <tr>
+                <td style="font-size:14px; color:#314158; padding-bottom:20px; padding-top: 8px;">Insira este código no aplicativo para validar seu email.</td>
+              </tr>
+              <tr>
+                <td style="font-size:13px; color:#314158; line-height:1.5;">Atenciosamente,<br>Equipe EasyList</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    """
 
-    # 4️⃣ Conectar no servidor SMTP e enviar
+    mensagem.attach(MIMEText(corpo_html, 'html'))
+
+    # Enviar o email via SMTP
     try:
-        servidor = smtplib.SMTP('smtp.gmail.com', 587)  # Gmail SMTP
-        servidor.starttls()  # Conexão segura
+        servidor = smtplib.SMTP('smtp.gmail.com', 587)
+        servidor.starttls()
         servidor.login(remetente, senha)
         servidor.send_message(mensagem)
         servidor.quit()
