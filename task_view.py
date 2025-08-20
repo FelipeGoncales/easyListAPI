@@ -216,14 +216,14 @@ def update_tasks():
     titulo = data.get('titulo')
     descricao = data.get('descricao')
     isCompleted = data.get('isCompleted')
-    data = data.get('data')
+    dataTask = data.get('data')
 
     if not id_task:
         return jsonify({
             'error': 'É necessário informar o ID da tarefa'
         }), 400
 
-    if titulo is not None or descricao is not None or isCompleted is not None or data is not None:
+    if titulo is not None or descricao is not None or isCompleted is not None or dataTask is not None:
 
         con = connectDb()
 
@@ -241,15 +241,15 @@ def update_tasks():
         if isCompleted is not None:
             query.append("isCompleted = ?")
             params.append(isCompleted)
-        if data is not None:
-            dataValida = validarData()
+        if dataTask is not None:
+            dataValida = validarData(dataTask)
 
             if not dataValida:
                 return jsonify({
                     'error': 'Data inválida'
                 }), 400
 
-            dataFormatada = formatarData(data)
+            dataFormatada = formatarData(dataTask)
 
             query.append("data = ?")
             params.append(dataFormatada)
