@@ -308,6 +308,11 @@ def validar_cadastro():
 
     resposta = cursor.fetchone()
 
+    if not resposta:
+        return jsonify({
+            'error': 'Email não cadastrado'
+        }), 400
+
     codigoBanco = resposta[0]
     criadoEm = datetime.datetime.strptime(resposta[1], "%Y-%m-%d %H:%M:%S.%f")
 
