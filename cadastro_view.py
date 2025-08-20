@@ -252,25 +252,26 @@ def delete_cadastro():
 
 @app.route('/reenviar-codigo', methods=['GET'])
 def reenviar_codigo():
-    token = request.headers.get('Authorization')
-    if not token:
-        return jsonify({'error': 'Token de autenticação necessário'}), 401
+    email = request.args.get('email')
 
-    token = remover_bearer(token)
+    con = connectDb()
 
-    try:
-        payload = jwt.decode(token, SENHA_SECRETA, algorithms=['HS256'])
-        id_usuario = payload['id_usuario']
-        email = payload['email']
-    except jwt.ExpiredSignatureError:
-        return jsonify({'error': 'Token expirado'}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({'error': 'Token inválido'}), 401
+    cursor = con.cursor()
 
-    if not validar_user(id_usuario, email):
+    cursor.execute('''
+        SELECT ID_USUARIO
+        FROM USUARIOS
+        WHERE EMAIl = ?
+    ''', (email,))
+
+    resposta = cursor.fetchone()
+
+    if not resposta:
         return jsonify({
-            'userExist': False
+            'error': 'Usuário não encontrado'
         }), 400
+
+    id_usuario = resposta[0]
 
     try:
         codigoGerado = gerarCodigo(id_usuario)
