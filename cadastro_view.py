@@ -331,12 +331,18 @@ def validar_cadastro():
         UPDATE USUARIOS
         SET CODIGO= NULL, CODIGO_CRIADO_EM= NULL, CONFIRMADO = True
         WHERE email = ?
-        RETURNING ID_USUARIO
+    ''', (email,))
+
+    con.commit()
+
+    cursor.execute('''
+        SELECT ID_USUARIO
+        FROM USUARIOS
+        WHERE EMAIL = ?
     ''', (email,))
 
     id_usuario = cursor.fetchone()[0]
 
-    con.commit()
     con.close()
 
     token = generateToken(id_usuario, email)
