@@ -292,7 +292,7 @@ def put_cadastro():
             return jsonify({
                 "error": "Senhas diferem"
             })
-        
+
         if senhaAtual is None:
             return jsonify({
                 "error": "Informe a senha atual"
@@ -390,7 +390,8 @@ def put_cadastro():
         enviarEmailEmThread(email, codigoGerado)
 
         return jsonify({
-            'success': 'Código de verificação enviado por email'
+            'success': 'Código de verificação enviado por email',
+            'codigoEnviado': True
         }), 200
 
     return jsonify({
