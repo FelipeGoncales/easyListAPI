@@ -4,7 +4,7 @@ import sqlite3
 from main import app, connectDb, SENHA_SECRETA, EMAIL_APP, SENHA_APP
 import jwt
 import re
-from flask_bcrypt import generate_password_hash
+from flask_bcrypt import generate_password_hash, check_password_hash
 from components import remover_bearer, validar_user
 import random
 import smtplib
@@ -43,7 +43,7 @@ def gerarCodigo(id_usuario):
 
     cursor.execute('''
         UPDATE USUARIOS
-        SET CODIGO= ?, CODIGO_CRIADO_EM= ?
+        SET CODIGO= ?, CODIGO_CRIADO_EM= ?, CONFIRMADO = FALSE
         WHERE ID_USUARIO = ?
     ''', (codigo, criado_em, id_usuario))
 
@@ -241,6 +241,160 @@ def post_cadastro():
 
     return jsonify({
         'success': 'Código de verificação enviado por email'
+    }), 200
+
+
+
+@app.route('/cadastro', methods=['PUT'])
+def put_cadastro():
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'error': 'Token de autenticação necessário'}), 401
+
+    token = remover_bearer(token)
+
+    try:
+        payload = jwt.decode(token, SENHA_SECRETA, algorithms=['HS256'])
+        id_usuario = payload['id_usuario']
+        email = payload['email']
+    except jwt.ExpiredSignatureError:
+        return jsonify({'error': 'Token expirado'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'error': 'Token inválido'}), 401
+
+    if not validar_user(id_usuario, email):
+        return jsonify({
+            'userExist': False
+        }), 400
+
+    data = request.get_json()
+
+    # Obtém os dados
+    nome = data.get('nome')
+    email = data.get('email')
+    senhaAtual = data.get('senhaAtual')
+    senhaNova = data.get('senhaNova')
+    senhaNovaConfirm = data.get('senhaNovaConfirm')
+
+    if nome is None or email is None:
+        return jsonify({
+            'error': 'Dados incompletos'
+        }), 400
+
+    # Abre o cursor
+    con = connectDb()
+    cursor = con.cursor()
+
+    if senhaNova or senhaNovaConfirm:
+
+        if senhaNova and senhaNovaConfirm and senhaNova != senhaNovaConfirm:
+            con.close()
+            return jsonify({
+                "error": "Senhas diferem"
+            })
+        
+        if senhaAtual is None:
+            return jsonify({
+                "error": "Informe a senha atual"
+            }), 401
+
+    if senhaAtual:
+        if senhaAtual is None or senhaNova is None or senhaNovaConfirm is None:
+            con.close()
+            return jsonify({
+                'error': 'Dados incompletos'
+            }), 400
+
+        cursor.execute('''
+            SELECT SENHA
+            FROM USUARIOS
+            WHERE ID_USUARIO = ?
+        ''', (id_usuario,))
+
+        senha_hash = cursor.fetchone()[0]
+
+        checkPassword = check_password_hash(senha_hash, senhaAtual)
+
+        if not checkPassword:
+            con.close()
+            return jsonify({
+                "error": "Senha atual incorreta"
+            }), 400
+
+        if senhaAtual == senhaNova:
+            return jsonify({
+                "error": "A nova senha não pode ser igual a atual"
+            }), 400
+
+        validacaoSenha = validarSenha(senhaNova)
+
+        if validacaoSenha is not True:
+            con.close()
+            return jsonify({
+                "error": validacaoSenha
+            }), 400
+
+    cursor.execute('''
+        SELECT EMAIL, NOME 
+        FROM USUARIOs
+        WHERE ID_USUARIO = ?
+    ''', (id_usuario,))
+
+    row = cursor.fetchone()
+
+    emailBanco = row[0]
+    nomeBanco = row[1]
+
+    if emailBanco == email and nomeBanco == nome and senhaAtual is None:
+        return jsonify({
+            "success": "Nenhuma alteração necessária"
+        }), 200
+
+    query = []
+    params = []
+
+    if email is not None and email != emailBanco:
+        query.append("email = ?")
+        params.append(email)
+    if nome is not None and nome != nomeBanco:
+        query.append("nome = ?")
+        params.append(nome)
+    if senhaNova is not None:
+        query.append("senha = ?")
+
+        nova_senha_hash = generate_password_hash(senhaNova).decode('utf-8')
+        params.append(nova_senha_hash)
+
+    if query:
+        query = ", ".join(query)
+        params.append(id_usuario)
+
+    cursor.execute(f'''
+                UPDATE USUARIOS
+                SET {query}
+                WHERE id_usuario = ?
+            ''', (tuple(params)))
+
+    con.commit()
+    con.close()
+
+    if email != emailBanco:
+        codigoGerado = gerarCodigo(id_usuario)
+
+        if not codigoGerado:
+            return jsonify({
+                "error": "Erro ao gerar código de verificação"
+            }), 400
+
+        # Envia o email
+        enviarEmailEmThread(email, codigoGerado)
+
+        return jsonify({
+            'success': 'Código de verificação enviado por email'
+        }), 200
+
+    return jsonify({
+        'success': 'Alterações salvas com sucesso!'
     }), 200
 
 @app.route('/cadastro', methods=['DELETE'])
