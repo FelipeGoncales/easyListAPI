@@ -71,7 +71,7 @@ def enviarEmail(email, codigo):
           <table width="100%" height="100%" bgcolor="#e5e7eb" align="center">
             <tr>
               <td align="center" valign="middle" bgcolor="#e5e7eb">
-                <table width="450" bgcolor="#90a1b9" style="border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.1); padding:30px; text-align:center;">
+                <table width="350" bgcolor="#90a1b9" style="border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.1); padding:30px; text-align:center;">
                   <tr>
                     <td style="font-size:24px; font-weight:bold; color:#314158; padding-bottom:20px;">EasyList</td>
                   </tr>
