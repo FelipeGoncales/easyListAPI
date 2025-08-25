@@ -50,9 +50,6 @@ def gerarCodigo(id_usuario):
     con.commit()
     con.close()
     return codigo
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import smtplib
 
 def enviarEmail(email, codigo):
     remetente = EMAIL_APP
