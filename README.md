@@ -2,7 +2,7 @@
 
 API REST desenvolvida com **Flask** para o gerenciamento de tarefas do EasyList. Responsável por autenticação de usuários, cadastro com verificação por e-mail e operações CRUD de tarefas.
 
-🔗 **Deploy:** [Render](https://render.com) — `https://sua-api.onrender.com`
+🔗 **Deploy:** [Render](https://render.com) — `https://easylistapi.onrender.com`
 
 ---
 
