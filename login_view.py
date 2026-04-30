@@ -1,8 +1,7 @@
-from flask import Flask, request, jsonify
-import sqlite3
+from flask import request, jsonify
 from flask_bcrypt import check_password_hash
-from main import app, connectDb, SENHA_SECRETA
-import jwt
+from main import app
+from supabase_client import supabase
 from components import generateToken
 
 @app.route('/login', methods=['POST'])
@@ -12,28 +11,24 @@ def login():
     email = data.get('email')
     senha = data.get('senha')
 
-    con = connectDb()
+    response = (
+        supabase
+        .table('USUARIOS')
+        .select('SENHA,ID_USUARIO,CONFIRMADO')
+        .eq('EMAIL',email)
+        .execute()
+    )
 
-    cursor = con.cursor()
-
-    cursor.execute('''
-        SELECT SENHA, ID_USUARIO, CONFIRMADO
-        FROM USUARIOS
-        WHERE EMAIL = ?
-    ''', (email,))
-
-    resposta = cursor.fetchone()
-
-    con.close()
-
-    if not resposta:
+    if not response.data:
         return jsonify({
             'error': 'Usuário não encontrado'
         }), 404
 
-    senha_hash = resposta[0]
-    id_usuario = resposta[1]
-    confirmado = resposta[2]
+    usuario = response.data[0]
+
+    senha_hash = usuario['SENHA']
+    id_usuario = usuario['ID_USUARIO']
+    confirmado = usuario['CONFIRMADO']
 
     if not check_password_hash(senha_hash, senha):
         return jsonify({

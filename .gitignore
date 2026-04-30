@@ -2,3 +2,7 @@
 venv
 .idea
 __pycache__
+db.txt
+.env
+.agents
+db.txt

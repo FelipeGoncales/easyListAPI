@@ -1,7 +1,6 @@
 import datetime
 from flask import Flask, request, jsonify
-import sqlite3
-from main import app, connectDb, SENHA_SECRETA, EMAIL_APP, SENHA_APP
+from main import app, SENHA_SECRETA, EMAIL_APP, SENHA_APP
 import jwt
 import re
 from flask_bcrypt import generate_password_hash, check_password_hash
@@ -12,6 +11,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import threading
 from components import generateToken
+from supabase_client import supabase
 
 def validarSenha(senha):
     if len(senha) < 8:
@@ -35,21 +35,23 @@ def gerarCodigo(id_usuario):
         num = random.choice([0,1,2,3,4,5,6,7,8,9])
         codigo = codigo + str(num)
 
-    criado_em = datetime.datetime.now()
+    criado_em = datetime.datetime.now().isoformat()
 
-    con = connectDb()
+    try:
+        response = (
+            supabase
+            .table('USUARIOS')
+            .update({'CODIGO': int(codigo), "CODIGO_CRIADO_EM": criado_em, "CONFIRMADO": False})
+            .eq('ID_USUARIO', id_usuario)
+            .execute()
+        )
 
-    cursor = con.cursor()
+        return codigo
 
-    cursor.execute('''
-        UPDATE USUARIOS
-        SET CODIGO= ?, CODIGO_CRIADO_EM= ?, CONFIRMADO = FALSE
-        WHERE ID_USUARIO = ?
-    ''', (codigo, criado_em, id_usuario))
+    except Exception as e:
+        return str(e)
 
-    con.commit()
-    con.close()
-    return codigo
+
 
 def enviarEmail(email, codigo):
     remetente = EMAIL_APP
@@ -137,26 +139,22 @@ def get_cadastro():
             'userExist': False
         }), 400
 
-    con = connectDb()
+    response = (
+        supabase
+        .table('USUARIOS')
+        .select('EMAIL, SENHA, NOME, CONFIRMADO')
+        .eq('ID_USUARIO', id_usuario)
+        .execute()
+    )
 
-    cursor = con.cursor()
-
-    cursor.execute('''
-        SELECT EMAIL, SENHA, NOME, CONFIRMADO
-        FROM USUARIOS
-        WHERE ID_USUARIO = ?
-    ''', (id_usuario,))
-
-    data = cursor.fetchone()
-
-    if not data:
+    if not response.data:
         return jsonify({
             'error': 'Usuário não encontrado'
         }), 400
 
-    con.close()
+    data = response.data[0]
 
-    confirmado = data[3]
+    confirmado = data['CONFIRMADO']
 
     if confirmado != 1:
         return jsonify({
@@ -166,9 +164,9 @@ def get_cadastro():
 
     usuario = {
             'id_usuario': id_usuario,
-            'email': data[0],
-            'senha': data[1],
-            'nome': data[2]
+            'email': data["EMAIL"],
+            'senha': data["SENHA"],
+            'nome': data["NOME"]
         }
 
     return jsonify({
@@ -189,18 +187,16 @@ def post_cadastro():
             'error': 'Dados incompletos'
         }), 400
 
-    # Abre o cursor
-    con = connectDb()
-    cursor = con.cursor()
+    # Faz a busca
+    response = (
+        supabase
+        .table('USUARIOS')
+        .select('EMAIL')
+        .eq('EMAIL', email)
+        .execute()
+    )
 
-    cursor.execute('''
-                SELECT 1
-                FROM USUARIOS
-                WHERE EMAIL = ?
-            ''', (email,))
-
-    if cursor.fetchone():
-        con.close()
+    if response.data:
         return jsonify({
             'error': 'Email já cadastrado'
         }), 400
@@ -208,23 +204,26 @@ def post_cadastro():
     validacaoSenha = validarSenha(senha)
 
     if validacaoSenha is not True:
-        con.close()
         return jsonify({
             "error": validacaoSenha
         }), 400
 
     senha_hash = generate_password_hash(senha).decode('utf-8')
 
-    cursor.execute('''
-        INSERT INTO USUARIOS (EMAIL, NOME, SENHA)
-        VALUES (?, ?, ?)
-        RETURNING ID_USUARIO
-    ''', (email, nome, senha_hash))
+    response = (
+        supabase
+        .table('USUARIOS')
+        .insert({'EMAIL': email, 'NOME': nome, 'SENHA': senha_hash})
+        .execute()
+    )
 
-    id_usuario = cursor.fetchone()[0]
+    if not response.data:
+        return jsonify({
+            'error': 'Erro ao cadastrar usuário.'
+        }), 400
 
-    con.commit()
-    con.close()
+    id_usuario = response.data[0]['ID_USUARIO']
+
 
     codigoGerado = gerarCodigo(id_usuario)
 
@@ -232,6 +231,8 @@ def post_cadastro():
         return jsonify({
             "error": "Erro ao gerar código de verificação"
         }), 400
+
+    print(codigoGerado)
 
     # Envia o email
     enviarEmailEmThread(email, codigoGerado)
@@ -278,14 +279,9 @@ def put_cadastro():
             'error': 'Dados incompletos'
         }), 400
 
-    # Abre o cursor
-    con = connectDb()
-    cursor = con.cursor()
-
     if senhaNova or senhaNovaConfirm:
 
         if senhaNova and senhaNovaConfirm and senhaNova != senhaNovaConfirm:
-            con.close()
             return jsonify({
                 "error": "Senhas diferem"
             })
@@ -297,23 +293,23 @@ def put_cadastro():
 
     if senhaAtual:
         if senhaAtual is None or senhaNova is None or senhaNovaConfirm is None:
-            con.close()
             return jsonify({
                 'error': 'Dados incompletos'
             }), 400
 
-        cursor.execute('''
-            SELECT SENHA
-            FROM USUARIOS
-            WHERE ID_USUARIO = ?
-        ''', (id_usuario,))
+        response = (
+            supabase
+            .table('USUARIOS')
+            .select('SENHA')
+            .eq('ID_USUARIO', id_usuario)
+            .execute()
+        )
 
-        senha_hash = cursor.fetchone()[0]
+        senha_hash = response.data[0]['SENHA']
 
         checkPassword = check_password_hash(senha_hash, senhaAtual)
 
         if not checkPassword:
-            con.close()
             return jsonify({
                 "error": "Senha atual incorreta"
             }), 400
@@ -326,54 +322,50 @@ def put_cadastro():
         validacaoSenha = validarSenha(senhaNova)
 
         if validacaoSenha is not True:
-            con.close()
             return jsonify({
                 "error": validacaoSenha
             }), 400
 
-    cursor.execute('''
-        SELECT EMAIL, NOME 
-        FROM USUARIOs
-        WHERE ID_USUARIO = ?
-    ''', (id_usuario,))
+    response = (
+        supabase
+        .table('USUARIOS')
+        .select('EMAIL', 'NOME')
+        .eq('ID_USUARIO', id_usuario)
+        .execute()
+    )
 
-    row = cursor.fetchone()
+    row = response.data
 
-    emailBanco = row[0]
-    nomeBanco = row[1]
+    if not row:
+        return jsonify({
+            'error': 'Usuário não encontrado'
+        }), 404
+
+    emailBanco = row[0]['EMAIL']
+    nomeBanco = row[0]['NOME']
 
     if emailBanco == email and nomeBanco == nome and senhaAtual is None:
         return jsonify({
             "success": "Nenhuma alteração necessária"
         }), 200
 
-    query = []
-    params = []
+    query = {}
 
     if email is not None and email != emailBanco:
-        query.append("email = ?")
-        params.append(email)
+        query['EMAIL'] = email
     if nome is not None and nome != nomeBanco:
-        query.append("nome = ?")
-        params.append(nome)
+        query['NOME'] = nome
     if senhaNova is not None:
-        query.append("senha = ?")
-
         nova_senha_hash = generate_password_hash(senhaNova).decode('utf-8')
-        params.append(nova_senha_hash)
+        query['SENHA'] = nova_senha_hash
 
-    if query:
-        query = ", ".join(query)
-        params.append(id_usuario)
-
-    cursor.execute(f'''
-                UPDATE USUARIOS
-                SET {query}
-                WHERE id_usuario = ?
-            ''', (tuple(params)))
-
-    con.commit()
-    con.close()
+    response = (
+        supabase
+        .table('USUARIOS')
+        .update(query)
+        .eq('ID_USUARIO', id_usuario)
+        .execute()
+    )
 
     if email != emailBanco:
         codigoGerado = gerarCodigo(id_usuario)
@@ -417,18 +409,13 @@ def delete_cadastro():
             'userExist': False
         }), 400
 
-    # Abre o cursor
-    con = connectDb()
-    cursor = con.cursor()
-
-    cursor.execute('''
-        DELETE FROM USUARIOS
-        WHERE ID_USUARIO = ?
-    ''', (id_usuario,))
-
-    con.commit()
-
-    con.close()
+    response = (
+        supabase
+        .table('USUARIOS')
+        .delete()
+        .eq('ID_USUARIO', id_usuario)
+        .execute()
+    )
 
     return jsonify({
         'success': 'Usuário deletado com sucesso!'
@@ -438,24 +425,22 @@ def delete_cadastro():
 def reenviar_codigo():
     email = request.args.get('email')
 
-    con = connectDb()
+    response = (
+        supabase
+        .table('USUARIOS')
+        .select('ID_USUARIO')
+        .eq('EMAIL', email)
+        .execute()
+    )
 
-    cursor = con.cursor()
-
-    cursor.execute('''
-        SELECT ID_USUARIO
-        FROM USUARIOS
-        WHERE EMAIl = ?
-    ''', (email,))
-
-    resposta = cursor.fetchone()
+    resposta = response.data
 
     if not resposta:
         return jsonify({
             'error': 'Usuário não encontrado'
         }), 400
 
-    id_usuario = resposta[0]
+    id_usuario = resposta[0]['ID_USUARIO']
 
     try:
         codigoGerado = gerarCodigo(id_usuario)
@@ -467,7 +452,7 @@ def reenviar_codigo():
         }), 200
     except Exception as e:
         return jsonify({
-            'error': e
+            'error': str(e)
         }), 400
 
 @app.route('/validar-cadastro', methods=['POST'])
@@ -482,27 +467,25 @@ def validar_cadastro():
             'error': 'Dados incompletos'
         }), 401
 
-    con = connectDb()
-    cursor = con.cursor()
+    response = (
+        supabase
+        .table('USUARIOS')
+        .select('CODIGO, CODIGO_CRIADO_EM')
+        .eq('EMAIL', email)
+        .execute()
+    )
 
-    cursor.execute('''
-        SELECT CODIGO, CODIGO_CRIADO_EM 
-        FROM USUARIOS
-        WHERE EMAIl = ?
-    ''', (email,))
-
-    resposta = cursor.fetchone()
+    resposta = response.data
 
     if not resposta:
         return jsonify({
             'error': 'Email não cadastrado'
         }), 400
 
-    codigoBanco = resposta[0]
-    criadoEm = datetime.datetime.strptime(resposta[1], "%Y-%m-%d %H:%M:%S.%f")
+    codigoBanco = resposta[0]['CODIGO']
+    criadoEm = datetime.datetime.strptime(resposta[0]['CODIGO_CRIADO_EM'], "%Y-%m-%dT%H:%M:%S.%f")
 
     if str(codigo) != str(codigoBanco):
-        con.close()
         return jsonify({
             'error': 'Código incorreto'
         }), 400
@@ -512,28 +495,27 @@ def validar_cadastro():
     diferenca = currentTime - criadoEm
 
     if diferenca.total_seconds() > 20 * 60:
-        con.close()
         return jsonify({
             'error': 'Código expirado, solicite um novo'
         }), 400
 
-    cursor.execute('''
-        UPDATE USUARIOS
-        SET CODIGO= NULL, CODIGO_CRIADO_EM= NULL, CONFIRMADO = True
-        WHERE email = ?
-    ''', (email,))
+    response = (
+        supabase
+        .table('USUARIOS')
+        .update({'CODIGO': None, 'CODIGO_CRIADO_EM': None, 'CONFIRMADO': True})
+        .eq('EMAIL', email)
+        .execute()
+    )
 
-    con.commit()
+    response = (
+        supabase
+        .table('USUARIOS')
+        .select('ID_USUARIO')
+        .eq('EMAIL', email)
+        .execute()
+    )
 
-    cursor.execute('''
-        SELECT ID_USUARIO
-        FROM USUARIOS
-        WHERE EMAIL = ?
-    ''', (email,))
-
-    id_usuario = cursor.fetchone()[0]
-
-    con.close()
+    id_usuario = response.data[0]['ID_USUARIO']
 
     token = generateToken(id_usuario, email)
 
@@ -541,4 +523,3 @@ def validar_cadastro():
         'success': 'Cadastro aprovado com sucesso!',
         'token': token
     }), 200
-

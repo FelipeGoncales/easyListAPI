@@ -1,9 +1,10 @@
-from flask import Flask, request, jsonify
-import sqlite3
-from main import app, connectDb, SENHA_SECRETA
+from flask import request, jsonify
+from main import app, SENHA_SECRETA
 import jwt
 from components import remover_bearer, validar_user
 from datetime import datetime
+from supabase_client import supabase
+
 
 def validarData(data):
     try:
@@ -13,11 +14,11 @@ def validarData(data):
         return False
 
 def formatarData(data):
-    return datetime.strptime(data,"%Y-%m-%d")
+    return datetime.strptime(data,"%Y-%m-%d").isoformat()
 
 def formatarDataBanco(data):
-    parsed = datetime.strptime(data, "%Y-%m-%d %H:%M:%S")
-    return parsed.strftime("%Y-%m-%d")
+    # Banco já retorna '2026-04-29', só pega os primeiros 10 caracteres
+    return data[:10]
 
 @app.route('/task', methods=['GET'])
 def get_tasks():
@@ -41,34 +42,38 @@ def get_tasks():
             'userExist': False
         }), 400
 
-    con = connectDb()
+    response = (
+        supabase
+        .table('TASK')
+        .select('ID_TASK, TITULO, DESCRICAO, ISCOMPLETED, DATA')
+        .eq('ID_USUARIO', id_usuario)
+        .order('DATA')
+        .execute()
+    )
 
-    cursor = con.cursor()
+    tasks = response.data
 
-    cursor.execute("SELECT ID_TASK, TITULO, DESCRICAO, ISCOMPLETED, DATA FROM TASK WHERE ID_USUARIO = ? ORDER BY DATA ASC", (id_usuario,))
-
-    tasks = cursor.fetchall()
-
-    con.close()
+    if not tasks:
+        return jsonify({
+            "tasks": []
+        }), 200
 
     data = []
 
-    if len(tasks) > 0:
-        for task in tasks:
-            data.append({
-                "id": task[0],
-                "titulo": task[1],
-                "descricao": task[2],
-                "isCompleted": task[3],
-                "data": formatarDataBanco(task[4])
-            })
+    for task in tasks:
+        data.append({
+            "id": task['ID_TASK'],
+            "titulo": task['TITULO'],
+            "descricao": task['DESCRICAO'],
+            "isCompleted": task['ISCOMPLETED'],
+            "data": formatarDataBanco(task['DATA'])
+        })
 
     return jsonify({
         "tasks": data
     }), 200
 
-
-@app.route('/task/<int:id_task>', methods=['GET'])
+@app.route('/task/<string:id_task>', methods=['GET'])
 def get_unique_task(id_task):
     token = request.headers.get('Authorization')
     if not token:
@@ -90,27 +95,28 @@ def get_unique_task(id_task):
             'userExist': False
         }), 400
 
-    con = connectDb()
+    response = (
+        supabase
+        .table('TASK')
+        .select('ID_TASK, TITULO, DESCRICAO, ISCOMPLETED, DATA')
+        .eq('ID_USUARIO', id_usuario)
+        .eq('ID_TASK', id_task)
+        .execute()
+    )
 
-    cursor = con.cursor()
-
-    cursor.execute("SELECT ID_TASK, TITULO, DESCRICAO, ISCOMPLETED, DATA FROM TASK WHERE ID_TASK = ? AND ID_USUARIO = ?", (id_task, id_usuario))
-
-    data = cursor.fetchone()
+    data = response.data
 
     if not data:
         return jsonify({
             'error': 'Tarefa não encontrada'
         }), 404
 
-    con.close()
-
     task = {
-        "id": data[0],
-        "titulo": data[1],
-        "descricao": data[2],
-        "isCompleted": data[3],
-        "data": formatarDataBanco(data[4])
+        "id": data[0]['ID_TASK'],
+        "titulo": data[0]['TITULO'],
+        "descricao": data[0]['DESCRICAO'],
+        "isCompleted": data[0]['ISCOMPLETED'],
+        "data": formatarDataBanco(data[0]['DATA'])
     }
 
     return jsonify({
@@ -161,21 +167,29 @@ def create_tasks():
 
     dataFormatada = formatarData(data)
 
-    con = connectDb()
+    query = {
+        'TITULO': titulo,
+        'DESCRICAO': descricao,
+        'ISCOMPLETED': isCompleted,
+        'DATA': dataFormatada,
+        'ID_USUARIO': id_usuario
+    }
 
-    cursor = con.cursor()
+    response = (
+        supabase
+        .table('TASK')
+        .insert(query)
+        .execute()
+    )
 
-    cursor.execute('''
-        INSERT INTO TASK (titulo, descricao, isCompleted, data, id_usuario)
-        VALUES (?, ?, ?, ?, ?)
-        RETURNING ID_TASK
-    ''', (titulo, descricao, isCompleted, dataFormatada, id_usuario))
+    res = response.data
 
-    id_task = cursor.fetchone()[0]
+    if not res:
+        return jsonify({
+            'error': 'Erro ao cadastrar a tarefa.'
+        }), 400
 
-    con.commit()
-
-    con.close()
+    id_task = res[0]['ID_TASK']
 
     return jsonify({
         "success": "Tarefa adicionada com sucesso!",
@@ -225,22 +239,14 @@ def update_tasks():
 
     if titulo is not None or descricao is not None or isCompleted is not None or dataTask is not None:
 
-        con = connectDb()
-
-        cursor = con.cursor()
-
-        query = []
-        params = []
+        query = {}
 
         if titulo is not None:
-            query.append("titulo = ?")
-            params.append(titulo)
+            query['TITULO'] = titulo
         if descricao is not None:
-            query.append("descricao = ?")
-            params.append(descricao)
+            query['DESCRICAO'] = descricao
         if isCompleted is not None:
-            query.append("isCompleted = ?")
-            params.append(isCompleted)
+            query['ISCOMPLETED'] = isCompleted
         if dataTask is not None:
             dataValida = validarData(dataTask)
 
@@ -251,23 +257,21 @@ def update_tasks():
 
             dataFormatada = formatarData(dataTask)
 
-            query.append("data = ?")
-            params.append(dataFormatada)
+            query['DATA'] = dataFormatada
 
-        if query:
-            query = ", ".join(query)
-            params.append(id_task)
-            params.append(id_usuario)
+        response = (
+            supabase
+            .table('TASK')
+            .update(query)
+            .eq('ID_TASK', id_task)
+            .eq('ID_USUARIO', id_usuario)
+            .execute()
+        )
 
-        cursor.execute(f'''
-            UPDATE TASK
-            SET {query}
-            WHERE id_task = ? AND id_usuario = ?
-        ''', (tuple(params)))
-
-        con.commit()
-
-        con.close()
+        if not response.data:
+            return jsonify({
+                'error': 'Erro ao editar a tarefa'
+            }), 400
 
         return jsonify({
             "success": "Tarefa atualizada com sucesso!"
@@ -310,34 +314,36 @@ def remove_tasks():
             'error': 'Dados incompletos'
         }), 400
 
-    con = connectDb()
+    response = (
+        supabase
+        .table('TASK')
+        .select('ID_TASK')
+        .eq('ID_TASK', id_task)
+        .eq('ID_USUARIO', id_usuario)
+        .limit(1)
+        .execute()
+    )
 
-    cursor = con.cursor()
-
-    cursor.execute('''
-        SELECT 1
-        FROM TASK
-        WHERE id_task = ? AND ID_USUARIO = ?
-    ''', (id_task, id_usuario))
-
-    row = cursor.fetchone()
+    row = response.data
 
     if not row:
-        con.close()
-
         return jsonify({
             'error': 'Tarefa não encontrada'
         }), 404
 
-    cursor.execute('''
-        DELETE FROM TASK
-        WHERE id_task = ?
-        AND id_usuario = ?
-    ''', (id_task, id_usuario))
+    response = (
+        supabase
+        .table('TASK')
+        .delete()
+        .eq('ID_TASK', id_task)
+        .eq('ID_USUARIO', id_usuario)
+        .execute()
+    )
 
-    con.commit()
-
-    con.close()
+    if not response.data:
+        return jsonify({
+            'error': 'Erro ao excluir a tarefa'
+        }), 400
 
     return jsonify({
         "success": "Tarefa deletada com sucesso!"

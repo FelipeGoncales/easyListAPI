@@ -1,6 +1,6 @@
-from flask import jsonify, request
 import jwt
-from main import connectDb, SENHA_SECRETA
+from main import SENHA_SECRETA
+from supabase_client import supabase
 
 def remover_bearer(token):
     if token.startswith('Bearer '):
@@ -10,17 +10,20 @@ def remover_bearer(token):
 
 # Validar token
 def validar_user(id_usuario, email):
-    con = connectDb()
 
-    cursor = con.cursor()
+    response = (
+        supabase
+        .table('USUARIOS')
+        .select()
+        .limit(1)
+        .eq('ID_USUARIO', id_usuario)
+        .eq('EMAIL', email)
+        .eq('CONFIRMADO', 1)
+        .single()
+        .execute()
+    )
 
-    cursor.execute('''
-        SELECT 1 
-        FROM USUARIOS
-        WHERE ID_USUARIO = ? AND EMAIL = ? AND CONFIRMADO = 1
-    ''', (id_usuario, email))
-
-    if cursor.fetchone():
+    if response.data:
         return True
 
     return False

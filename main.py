@@ -4,9 +4,6 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app, origins=["*"])
 
-def connectDb():
-    return sqlite3.connect('banco.db')
-
 SENHA_SECRETA = "easylist"
 EMAIL_APP = "easylistbgi@gmail.com"
 SENHA_APP = "epsjtikubllqfrxx"
@@ -16,4 +13,4 @@ from login_view import *
 from cadastro_view import *
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
